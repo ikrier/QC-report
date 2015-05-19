@@ -46,7 +46,7 @@ plot(cov[2:nrow(cov), 2], cov_cumul[1:(length(cov_cumul)-1)], type='l', ,lwd=3,c
 
 dev.off()
 
-png(paste("outprefix_","exome-coverage-hist.png",sep=""),h=600,w=900,pointsize=20)
+png(paste(outprefix,"_exome-coverage-hist.png",sep=""),h=600,w=900,pointsize=20)
 seqs=seq(-1,60000,1000)
 indices=.bincode(cov[,2],seqs)
 covhist=rep(0,length(seqs))
