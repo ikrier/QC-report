@@ -1,0 +1,553 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}  
+\usepackage[T1]{fontenc}
+\usepackage[frenchb]{babel}
+\usepackage{booktabs}
+\usepackage{graphicx, subfig}
+\usepackage[nogin]{Sweave}
+
+\usepackage[a4paper, total={7in, 9in}]{geometry}
+
+\usepackage{wrapfig}
+
+\title{Rapport de Séquençage pour Librairie \Sexpr{libname}, échantillon COSMIC \Sexpr{cosmname}}
+\date{\today}
+\author{Irina Krier\\ UNIGE Département de Médecine
+        \and Thomas Matthes\\ HUG Cytométrie}
+
+\begin{document}
+
+\SweaveOpts{concordance=TRUE}
+
+\maketitle
+
+\section{Statistiques résumées}
+
+\begin{center}
+<<label=table1, results=tex, echo=FALSE,width=8,height=4>>=
+picardstats=read.table("report_49.txt",fill=T,header=1)
+library(xtable)
+df=data.frame(cat=as.character(picardstats$CATEGORY),
+              Seqnb=format(picardstats$TOTAL_READS,big.mark = "'"),
+              Aligned=format(picardstats$PF_READS_ALIGNED,big.mark = "'"),
+              percentalign=picardstats$PCT_PF_READS_ALIGNED*100,
+              percentnomate=100-100*picardstats$PCT_READS_ALIGNED_IN_PAIRS)
+strCaption <- paste0("\\textbf{Statistiques de séquençage et alignement} Actuellement les statistiques ne sont pas correctes, car Sophia a omis les fragments qui ne s'alignaient pas de ce fichier.")
+print(xtable(df, digits=2, caption=strCaption, label="StatsTable"), 
+      size="footnotesize", #Change size; useful for bigger tables
+      include.rownames=FALSE, #Don't print rownames
+      include.colnames=FALSE, #We create them ourselves
+      caption.placement="top", 
+      hline.after=NULL, #We don't need hline; we use booktabs
+      add.to.row = list(pos = list(-1, 
+                                   nrow(df)),
+                        command = c(paste("\\toprule \n",
+                                          "Catégorie & Nombre séquences & Nombre alignements & Pourcentage alignement & Pourcentage sans paire  \\\\\n", 
+                                          "\\midrule \n"),
+                                    "\\bottomrule \n")
+                        )
+      )
+
+@
+\end{center}
+
+
+<<label=fig1plot,include=FALSE,echo=FALSE>>=
+par(oma=c(0,0,0,0))
+par(mar=c(1,1,0,1))
+picardstats2=as.data.frame(read.table("/data/Libs_Sophia/Lib_49_dupstats.txt",fill=T,header=1,stringsAsFactors = F)[2,])
+res=numeric()
+res$dups=picardstats2$PERCENT_DUPLICATION
+res$uniq=picardstats2$UNPAIRED_READS_EXAMINED+picardstats2$READ_PAIRS_EXAMINED*2-as.numeric(picardstats2$READ_PAIR_DUPLICATES)*2-picardstats2$UNPAIRED_READ_DUPLICATES
+res$dupnum=as.numeric(picardstats2$READ_PAIR_DUPLICATES)*2+picardstats2$UNPAIRED_READ_DUPLICATES
+res$total=picardstats2$UNPAIRED_READS_EXAMINED+picardstats2$READ_PAIRS_EXAMINED*2
+data=rbind(res$uniq,res$dupnum)
+ticks=seq(0,1e4*ceiling(res$total/1e4),1e4)
+ticks=pretty(ticks)
+labels=format(ticks, big.mark=",", scientific=FALSE)
+barplot(rbind(res$uniq,res$dupnum),beside =F,width = 1,las=1,horiz=T,col=c("cornflowerblue","lightgrey"),axes =F,xlim=c(0,max(ticks)))
+axis(1,at=ticks,labels = labels,mgp=c(3,0.1,0),tck=-0.25,cex.axis=0.6)
+pos=cumsum(data)-0.5*data
+pos=c(0,pos[2])
+text(pos,2/3,c(paste(format(100-100*res$dups,digits=2),"% unique"),paste(format(100*res$dups,digits = 4),"% dupliqué")),cex=0.58,pos = 4)
+@
+
+\begin{wrapfigure}{c}{\textwidth}
+\begin{center}
+<<label=fig1,fig=TRUE,echo=FALSE, height=0.5,width=5>>=
+<<fig1plot>>
+@
+\caption{\textbf{Duplications dans l'échantillon} Il y a énormément de duplications tel que mesuré par le logiciel Picard qui tient compte des paires de reads de chaque fragment. On ne peut pas estimer la part due au protocole ou à la PCR, mais le reste des statistiques montrera les "unique" tels qu'estimés de manière très stringente, comme si la seule source de duplication était la PCR.}
+\end{center}
+\end{wrapfigure}
+
+<<label=fig2plot1,include=F,echo=FALSE>>=
+library("qrqc")
+#s.fastq1=readSeqFile(paste(fastqdir,list.files(pattern=paste(libname,".*_R1_.*",sep=""),path = fastqdir,ignore.case = TRUE),sep=""))
+#save(s.fastq1,file="s.fastq1.RData")
+load("s.fastq1.RData")
+fastqc1=s.fastq1@qual.freqs
+mysummary=function(x){c(mean(x),quantile(x,c(0.1,0.25,0.5,0.75,0.9)))}
+expand=function(x){mysummary(as.numeric(rep(colnames(fastqc1[,-1]),x)))}
+#all=apply(fastqc1[,-1],1,expand)
+#save(all,file="all1.RData")
+load("all1.RData")
+stats1=list()
+stats1$stats=as.matrix(all[-1,])
+stats1$names=1:99
+par(mar=c(2.5,3,0,0),oma=c(0.5,0,0,0))
+par(mgp=c(1.2,0.6,0))
+bxp(stats1,ylim=c(0,max(stats1$stats)),axes=F)
+axis(2,las=2,cex=0.7,cex.axis=0.7)
+axis(1,at = as.numeric(stats1$names),cex=0.7,cex.axis=0.7)
+mtext(side = 1,line = 2,text = "Base",cex = 0.7)
+mtext(side = 2,line = 2,text = "Quality",cex=0.7)
+points(all[1,],type="l",col="blue")
+@
+
+<<label=fig2plot2,include=F,echo=FALSE>>=
+#s.fastq2=readSeqFile(paste(fastqdir,list.files(pattern=paste(libname,".*_R2_.*",sep=""),path = fastqdir,ignore.case = TRUE),sep=""))
+#save(s.fastq2,file="s.fastq2.RData")
+load("s.fastq2.RData")
+fastqc2=s.fastq2@qual.freqs
+mysummary=function(x){c(mean(x),quantile(x,c(0.1,0.25,0.5,0.75,0.9)))}
+expand=function(x){mysummary(as.numeric(rep(colnames(fastqc1[,-1]),x)))}
+#all=apply(fastqc2[,-1],1,expand)
+#save(all,file="all2.RData")
+load("all2.RData")
+stats2=list()
+stats2$stats=as.matrix(all[-1,])
+stats2$names=1:99
+par(mar=c(2.5,3,0,0),oma=c(0.5,0,0,0))
+par(mgp=c(1.2,0.6,0))
+bxp(stats2,ylim=c(0,max(stats2$stats)),axes=F)
+axis(2,las=2,cex=0.7,cex.axis=0.7)
+axis(1,at = as.numeric(stats2$names),cex=0.7,cex.axis=0.7)
+mtext(side = 1,line = 2,text = "Base",cex=0.7)
+mtext(side = 2,line = 2,text = "Quality",cex=0.7)
+points(all[1,],type="l",col="blue")
+rm(all)
+@
+
+
+\begin{wrapfigure}{c}{\textwidth}
+\begin{center}
+\subfloat[Read 1]{
+<<label=fig21,fig=TRUE,echo=FALSE, height=3,width=3,include=TRUE>>=
+<<fig2plot1>>
+@
+}
+\subfloat[Read 2]{
+<<label=fig22,fig=TRUE,echo=FALSE, height=3,width=3,include=TRUE>>=
+<<fig2plot2>>
+@
+}
+
+\caption{\textbf{Qualité de séquençage} Le score de qualité correspond à $Q= -10log10(e)$ avec le taux d'erreur $e$. Donc 30 correspond à $1/1000$}
+\end{center}
+\end{wrapfigure}
+
+
+
+<<label=fig3plot1,include=F,echo=FALSE>>=
+stats1=as.data.frame(s.fastq1@base.freqs)[,-1]
+stats1=stats1/rowSums(stats1)
+par(mar=c(2.5,3,0,0),oma=c(0.5,0,0,0))
+par(mgp=c(1.2,0.6,0))
+library("RColorBrewer")
+colors=c("cornflowerblue","orange","red","turquoise4")
+plot(stats1$A,col=colors[1],type="l",axes=F,xlab="",ylab="",ylim=c(0,1),lwd=2)
+axis(2,las=2,cex=0.7,cex.axis=0.7)
+axis(1,at = seq(1:length(stats1$A)),labels = 1:nrow(stats1),cex=0.7,cex.axis=0.7)
+mtext(side = 1,line = 2,text = "Base",cex=0.7)
+mtext(side = 2,line = 2,text = "Proportion",cex=0.7)
+points(stats1$C,col=colors[2],type="l",lwd=2)
+points(stats1$G,col=colors[3],type="l",lwd=2)
+points(stats1$T,col=colors[4],type="l",lwd=2)
+abline(h=0.25)
+legend("topright",lty=1,lwd=2,col=colors,legend=c("A","C","G","T"),cex=0.7)
+@
+
+<<label=fig3plot2,include=F,echo=FALSE>>=
+stats2=as.data.frame(s.fastq2@base.freqs)[,-1]
+stats2=stats2/rowSums(stats2)
+par(mar=c(2.5,3,0,0),oma=c(0.5,0,0,0))
+par(mgp=c(1.2,0.6,0))
+library("RColorBrewer")
+colors=c("cornflowerblue","orange","red","turquoise4")
+plot(stats2$A,col=colors[1],type="l",axes=F,xlab="",ylab="",ylim=c(0,1),lwd=2)
+axis(2,las=2,cex=0.7,cex.axis=0.7)
+axis(1,at = seq(1:length(stats2$A)),labels = 1:nrow(stats2),cex=0.7,cex.axis=0.7)
+mtext(side = 1,line = 2,text = "Base",cex=0.7)
+mtext(side = 2,line = 2,text = "Proportion",cex=0.7)
+points(stats2$C,col=colors[2],type="l",lwd=2)
+points(stats2$G,col=colors[3],type="l",lwd=2)
+points(stats2$T,col=colors[4],type="l",lwd=2)
+abline(h=0.25)
+legend("topright",lty=1,lwd=2,col=colors,legend=c("A","C","G","T"),cex=0.7)
+@
+
+
+\begin{wrapfigure}{c}{\textwidth}
+\begin{center}
+\subfloat[Read 1]{
+<<label=fig31,fig=TRUE,echo=FALSE, height=3,width=3,include=TRUE>>=
+<<fig3plot1>>
+@
+}
+\subfloat[Read 2]{
+<<label=fig32,fig=TRUE,echo=FALSE, height=3,width=3,include=TRUE>>=
+<<fig3plot2>>
+@
+}
+\caption{\textbf{Proportion des bases par position} Ceci est fait sur les fichiers originaux sans retirer les séquences potentiellement contaminante, les sites de restrictions ou les adaptateurs qui peuvent se trouver au début}
+\end{center}
+\end{wrapfigure}
+
+<<label=fig41plot,include=FALSE,echo=FALSE>>=
+par(mar=c(2.5,1,0,0),oma=c(0.5,1,0,0))
+par(mgp=c(1.2,0.6,0))
+#GClist=as.numeric(unlist(read.table(text=system(paste("samtools view -s 2.01 /data/Libs_Sophia/Lib_",libname,".bam |awk '{ n=length($10); print  gsub(/[GCgc]/,t,$10)/n;}'",sep=""),intern=T),stringsAsFactors = F)))
+GClist=as.numeric(unlist(read.table("GCoutput.txt",stringsAsFactors = F)))
+library("BSgenome.Hsapiens.UCSC.hg19")
+genome <- BSgenome.Hsapiens.UCSC.hg19
+library("rtracklayer")
+# targets=as(import.bed(regionsname),"GRanges")
+# sepintobins=function(x){
+#   t=c(seq(start(x),end(x),20),end(x))
+#   return(GRanges(seqnames = rep(seqnames(x),length(t)-1),ranges =  IRanges(start=t[-length(t)],end=t[-1]),name=rep(x$name,length(t)-1)))
+# }
+# targets=unlist(GRangesList(sapply(targets,sepintobins)))
+# save(targets,file="binnedtargets.RData")
+load("binnedtargets.RData")
+#export.bed(unlist(targets),"targetsbin.bed")
+seqlevels(targets)=paste("chr",seqlevels(targets),sep="")
+targetseq=getSeq(genome,targets)
+freq=alphabetFrequency(targetseq)[,1:4]
+GCall=rowSums(freq[,2:3])/rowSums(freq)
+densGC=density(GClist)
+plot(densGC,main="",lwd=2,cex.axis=0.6,cex=0.6,cex.lab=0.6,xlab="",las=1,mgp=c(3,0.5,0))
+mtext(paste("Proportion de GC calculée sur",format(densGC$n,big.mark = "'"),"séquences"),side = 1,line = 2,cex=0.6)
+points(density(GCall),col=2,type="l",lwd=2)
+legend("topright",col=c(1,2),legend=c("Echantillon","Cibles"),lty = 1,lwd=2,cex=0.5)
+@
+
+%%Rajouter la relation GC-depth par bin de X bases
+%%Il y a un truc bizarre avec certaines séquences qui sont répétées dans le fichier de Gwendal...
+<<label=fig42plot,include=FALSE,echo=FALSE>>=
+par(mar=c(2.5,2,0,0),oma=c(0.5,2,0,0))
+par(mgp=c(1.2,0.6,0))
+#depth=read.table(text=system(paste("coverageBed -abam",bamname,"-b targetsbin.bed -d"),intern=TRUE))
+#depth=GRanges(seqnames = paste("chr",depth$V1,sep=""),ranges = IRanges(depth$V2+depth$V7-1,depth$V2+depth$V7-1),score=depth$V8)
+#save(depth,file="depth.RData")
+load("depth.RData")
+corresp=as.matrix(findOverlaps(targets,depth,minoverlap = 1))
+scores=tapply(corresp[,2],corresp[,1],function(x){mean(depth$score[x])})
+names(scores)=as.character(unique(corresp[,1]))
+plot(GCall[(1:length(targets))%in%names(scores)],scores,axes=F,xlab="",ylab="",pch=19)
+axis(1,cex.axis=0.6)
+axis(2,las=2,cex=0.6,cex.axis=0.6)
+mtext("Proportion de GC",1,2,cex=0.6)
+mtext("Profondeur moyenne",2,2,cex=0.6)
+@
+
+
+\begin{wrapfigure}{c}{\textwidth}
+\begin{center}
+\subfloat[Distribution]{
+<<label=fig41,fig=TRUE,echo=FALSE,include=TRUE,height=3,width=2.8>>=
+<<fig41plot>>
+@
+}
+\subfloat[Profondeur]{
+<<label=fig42,fig=TRUE,echo=FALSE,include=TRUE,height=3,width=2.8>>=
+<<fig42plot>>
+@
+}
+\caption{\textbf{Distribution de GC dans l'échantillon par rapport aux séquences cibles} Les séquences cibles ont été divisées en portions de 20 bases pour calculer la distribution}
+\end{center}
+\end{wrapfigure}
+
+\begin{center}
+<<label=table2,echo=FALSE,results=tex>>=
+clippedstartfwd=read.table("Lib_49_subset_startsclips_nb_fwd.txt",header = F,as.is = TRUE)
+clippedstartfwd=c(rep(clippedstartfwd$V2,clippedstartfwd$V1))
+clippedstartrev=read.table("Lib_49_subset_startsclips_nb_rev.txt",header = F,as.is = TRUE)
+clippedstartrev=c(rep(clippedstartrev$V2,clippedstartrev$V1))
+clippedendfwd=read.table("Lib_49_subset_endsclips_nb_fwd.txt",header = F,as.is = TRUE)
+clippedendfwd=c(rep(clippedendfwd$V2,clippedendfwd$V1))
+clippedendrev=read.table("Lib_49_subset_endsclips_nb_rev.txt",header = F,as.is = TRUE)
+clippedendrev=c(rep(clippedendrev$V2,clippedendrev$V1))
+df=data.frame(cat=c("Start forward","End reverse","End forward","Start reverse"),
+              prop=format(c(length(clippedstartfwd)/picardstats$PF_READS_ALIGNED[3],
+                     length(clippedendrev)/picardstats$PF_READS_ALIGNED[3],
+                     length(clippedendfwd)/picardstats$PF_READS_ALIGNED[3],
+                     length(clippedstartrev)/picardstats$PF_READS_ALIGNED[3]),style="scientific",digits=2),
+              median=format(c(median(clippedstartfwd),median(clippedendrev),median(clippedendfwd),median(clippedstartrev)),digits=0),
+              max=c(c(max(clippedstartfwd),max(clippedendrev),max(clippedendfwd),max(clippedstartrev)))
+              )
+strCaption <- paste0("\\textbf{Statistiques de soft clipping} Le soft clipping permet de n'utiliser qu'une portion de la séquence pour l'alignement, enlevant des bases au début ou à la fin, par exemple pour permettre d'éliminer des contaminations d'adaptateurs de la librairie")
+print(xtable(df, caption=strCaption, label="softclip"), 
+      size="footnotesize", #Change size; useful for bigger tables
+      include.rownames=FALSE, #Don't print rownames
+      include.colnames=FALSE, #We create them ourselves
+      caption.placement="top", 
+      hline.after=NULL, #We don't need hline; we use booktabs
+      add.to.row = list(pos = list(-1, 
+                                   nrow(df)),
+                        command = c(paste("\\toprule \n",
+                                          "Catégorie & Pourcentage & Médiane & Max  \\\\\n", 
+                                          "\\midrule \n"),
+                                    "\\bottomrule \n")
+                        )
+      )
+@
+\end{center}
+
+<<label=fig51plot,include=FALSE,echo=FALSE>>=
+par(mar=c(2.5,3.3,0,0),oma=c(0.5,0,0,0))
+par(mgp=c(1.2,0.6,0))
+bamname=paste("/data/Libs_Sophia/Lib_",libname,".bam",sep="")
+# cov=read.table(text=system(paste("bedtools coverage -abam ",bamname," -b ",regionsname," -hist | grep ^all",sep=""),intern=T))
+# save(cov,file="covvector.RData")
+load("covvector.RData")
+cov_cumul <- 1-cumsum(cov[,5])
+library(RColorBrewer)
+cols <- brewer.pal(3, "Dark2")
+col=cols[1]
+plot(cov[2:nrow(cov), 2], cov_cumul[1:(length(cov_cumul)-1)], type='l',lwd=3,col=col,xlab="",ylab="", ylim=c(0,1.0), main="",xlim=c(0,max(cov[,2])),axes=F)
+axis(2,las=2,cex=0.7,cex.axis=0.7)
+axis(1,cex=0.7,cex.axis=0.7)
+mtext(side = 1,line = 2,text = "Profondeur",cex = 0.7)
+mtext(side = 2,line = 2,text = "Fraction des bases ciblées couvertes\nde plus de x fois",cex=0.7)
+@
+
+<<label=fig52plot,include=FALSE,echo=FALSE>>=
+par(mar=c(2.5,3,0,0),oma=c(0.5,0,0,0))
+par(mgp=c(1.2,0.6,0))
+round=ceiling(max(cov[,2])/10000)*10000
+seqs=seq(-1,round,1000)
+indices=.bincode(cov[,2],seqs)
+covhist=rep(0,length(seqs))
+names(covhist)=seqs
+covhist[unique(indices)]=tapply(cov[,5],indices,sum)
+b=barplot(covhist,axes = F,names.arg = "",xlab="",ylab="")
+axis(1,at =b[seq(1,length(b),5)],labels=(seqs+1)[seq(1,length(b),5)],cex.axis=0.7)
+axis(2,las=2,cex.axis=0.7)
+mtext(side = 1,line = 2,text = "Profondeur",cex = 0.7)
+mtext(side = 2,line = 2,text = "Fraction des bases ciblées couvertes à x fois",cex=0.7)
+@
+
+
+\begin{wrapfigure}{c}{\textwidth}
+\begin{center}
+\subfloat[Distribution cumulative empirique]{
+<<label=fig51,fig=TRUE,echo=FALSE,include=TRUE,height=3,width=3>>=
+<<fig51plot>>
+@
+}
+\subfloat[Histogramme]{
+<<label=fig52,fig=TRUE,echo=FALSE,include=TRUE,height=3,width=3>>=
+<<fig52plot>>
+@
+}
+\caption{\textbf{Statistiques de profondeur de séquençage} Il y a \Sexpr{format(cov[1,5]*100,digits=2)}\% de bases sans aucun alignement, et \Sexpr{format(cumsum(cov[,5])[100]*100,digits=2)}\% de bases couvertes par moins de 100 alignements.}
+\end{center}
+\end{wrapfigure}
+
+%%Add : proportion covered by a single type of fragment (after rmdup)
+\begin{center}
+<<label=table3,echo=FALSE,include=FALSE,results=tex>>=
+rmdupfile=paste("/data/Libs_Sophia/Lib_",libname,"_rmdups.bam",sep="")
+# table=read.table(text=system(paste("samtools view -F0x400 -b ",rmdupfile," | bedtools coverage -abam - -b ",regionsname," -hist",sep=""),intern=T),fill=T)
+# save(table,file="rmdupstatstable.RData")
+load("rmdupstatstable.RData")
+df=data.frame(cat=c("zéro","un"),numbers=table[table$V1=="all",][1:2,3],percent=table[table$V1=="all",][1:2,5])
+strCaption <- paste0("\\textbf{Statistiques de couverture par zéro ou un alignement unique} Si une base n'est couverte que par un alignement unique on ne peut pas estimer la présence de variants ni leur proportion ")
+print(xtable(df, caption=strCaption, label="unique"), 
+      size="footnotesize", #Change size; useful for bigger tables
+      include.rownames=FALSE, #Don't print rownames
+      include.colnames=FALSE, #We create them ourselves
+      caption.placement="top", 
+      hline.after=NULL, #We don't need hline; we use booktabs
+      add.to.row = list(pos = list(-1, 
+                                   nrow(df)),
+                        command = c(paste("\\toprule \n",
+                                          "Alignements & Nombre de bases &Pourcentage de toutes les bases ciblées \\\\\n", 
+                                          "\\midrule \n"),
+                                    "\\bottomrule \n")
+                        )
+      )
+@
+\end{center}
+
+%%Add : proportion of reads within the target regions
+<<label=fig6plot,echo=FALSE,include=FALSE>>=
+par(mar=c(2.5,0,0,0),oma=c(0.5,0,0,0))
+# number_all_on_target=as.numeric(system(paste("samtools view -c",bamname,"-L",regionsname),intern=T))
+# number_uniq_on_target=as.numeric(system(paste("samtools view -F0x400 -c",rmdupfile,"-L",regionsname),intern=T))
+# proportion_all=100*c(number_all_on_target,as.numeric(picardstats$TOTAL_READS[3])-number_all_on_target)/as.numeric(picardstats$TOTAL_READS[3])
+# proportion_uniq=100*c(number_uniq_on_target,res$uniq-number_uniq_on_target)/res$uniq
+# save(number_all_on_target,number_uniq_on_target,proportion_all,proportion_uniq,file="allnumsstatsdup.RData")
+load("allnumsstatsdup.RData")
+cols=c("cornflowerblue","lightgrey")
+barx=barplot(cbind(proportion_all,proportion_uniq),beside=F,col=cols,axes=F,names=c("Tous les alignements","Alignements uniques"),cex.names=0.7)
+pos=c(cumsum(proportion_all)-0.5*proportion_all,cumsum(proportion_uniq)-0.5*proportion_uniq)
+text(rep(barx,each=2),pos,cex=0.6,labels = paste(format(c(cbind(proportion_all,proportion_uniq)),digits = 2),"%",rep(c("sur cibles","hors cible"))))
+@
+
+\begin{wrapfigure}{c}{\textwidth}
+\begin{center}
+<<label=fig6,fig=TRUE,echo=FALSE,include=TRUE,height=3,width=3>>=
+<<fig6plot>>
+@
+\caption{\textbf{Pourcentage des alignements sur cible} La sélection fonctionne très bien.}
+\end{center}
+\end{wrapfigure}
+
+%%K-mer representation
+<<label=fig7plot,echo=FALSE,include=FALSE>>=
+s.kmers <- getKmer(s.fastq1)
+top.kmers <- s.kmers$kmer[order(s.kmers$count, decreasing=TRUE)[1:40]]
+p <- ggplot(subset(s.kmers, kmer %in% top.kmers)) + geom_bar(aes(x=position, y=count,
+                                                                 fill=kmer), stat="identity")
+require(grid)
+p + theme(legend.key.size =  unit(0.15, "in")) + theme(legend.text = element_text(size=5))
+@
+
+\begin{wrapfigure}{c}{\textwidth}
+\begin{center}
+<<label=fig7,fig=TRUE,echo=FALSE,include=TRUE,height=6,width=7>>=
+<<fig7plot>>
+@
+\caption{\textbf{Représentation des k-mers par position, Read 1} On peut voir en rose des homopolymères suspects qui sont sur-représentés à partir de la base 30}
+\end{center}
+\end{wrapfigure}
+
+<<label=fig8plot,echo=FALSE,include=FALSE>>=
+s.kmers <- getKmer(s.fastq2)
+top.kmers <- s.kmers$kmer[order(s.kmers$count, decreasing=TRUE)[1:40]]
+p <- ggplot(subset(s.kmers, kmer %in% top.kmers)) + geom_bar(aes(x=position, y=count,
+                                                                 fill=kmer), stat="identity")
+p + theme(legend.key.size =  unit(0.15, "in")) + theme(legend.text = element_text(size=5))
+@
+
+\begin{wrapfigure}{c}{\textwidth}
+\begin{center}
+<<label=fig8,fig=TRUE,echo=FALSE,include=TRUE,height=6,width=7>>=
+<<fig8plot>>
+@
+\caption{\textbf{Représentation des k-mers par position, Read 2} On peut voir en rose des homopolymères suspects qui sont sur-représentés à partir de la base 60}
+\end{center}
+\end{wrapfigure}
+
+%%We might want to redo this for before/after trimming?
+
+%%Stats for individual genes :
+%%- Plot with stranded coverage, split if needed into several regions, 
+%%with the regions covered either by nothing or by a single type of fragment identified
+<<label=genelist,include=FALSE,echo=FALSE>>=
+targets=as(import.bed(regionsname),"GRanges")
+source("../plot_gene_profile.R")
+list_gene_ranges=tapply(targets,targets$name,function(x){GRanges(unique(seqnames(x)),IRanges(min(start(x)),max(end(x))),strand="*")})
+maxwidth=30000
+for(name in names(list_gene_ranges))
+{
+  if(width(list_gene_ranges[[name]])>=maxwidth)
+  {
+    
+    nranges=ceiling(width(list_gene_ranges[[name]])/maxwidth)
+    limits=c(seq(start(list_gene_ranges[[name]]),end(list_gene_ranges[[name]]),maxwidth),end(list_gene_ranges[[name]]))
+    for(n in 1:(nranges))
+    {
+      list_gene_ranges[[paste(name,n,sep="_")]]=GRanges(unique(seqnames(list_gene_ranges[[name]])),IRanges(limits[n],limits[n+1]))
+    }
+    list_gene_ranges[[name]]=NULL
+  }
+}
+#list_gene_ranges=list_gene_ranges[1:3]
+@
+
+\clearpage
+\section{Couverture des cibles individuellement}
+
+<<label=covtable,results=tex,echo=FALSE>>=
+source("../plot_cumul_cov.R")
+coveragetargets=read.table(text=system(paste("bedtools coverage -abam ",bamname," -b ",regionsname," -hist | grep -v ^all",sep=""),intern=T))
+coveragetargetsuniq=read.table(text=system(paste("samtools view -F0x400 -b ",rmdupfile," | bedtools coverage -abam - -b ",regionsname," -hist | grep -v ^all",sep=""),intern=T))
+coveragetargets$index=paste("chr",coveragetargets$V1,":",coveragetargets$V2,"-",coveragetargets$V3," ",coveragetargets$V4,sep="")
+i=0
+coveragetargetsuniq$index=paste("chr",coveragetargetsuniq$V1,":",coveragetargetsuniq$V2,"-",coveragetargetsuniq$V3," ",coveragetargetsuniq$V4,sep="")
+i=0
+percent=numeric()
+percentU=numeric()
+mincov=100
+mincovU=2
+for(name in unique(coveragetargets$index)){percent[name]=plot_cumul_cov(coveragetargets,name,min=mincov)}
+for(name in unique(coveragetargetsuniq$index)){percentU[name]=plot_cumul_cov(coveragetargetsuniq,name,min=mincovU)}
+for(name in  unique(targets$name))
+{
+  i=i+1
+  which=grep(pattern = paste(name,"\\>",sep=""),names(percent))
+  df=data.frame(all=percent[which],uniq=percentU[which])
+  strCaption <- paste0("Table de couverture des régions ciblées de ",paste(unlist(strsplit(name,"_")),collapse="\\_"),sep="")
+  print(xtable(df, digits=2, caption=strCaption, label="StatsTable",align="rll"), 
+      size="footnotesize", #Change size; useful for bigger tables
+      include.rownames=TRUE, #Don't print rownames
+      include.colnames=FALSE, #We create them ourselves
+      caption.placement="top", 
+      hline.after=NULL, #We don't need hline; we use booktabs
+      add.to.row = list(pos = list(-1, 
+                                   nrow(df)),
+                        command = c(paste("\\toprule \n",
+                                          "Région & \\% couvert de > ",mincov," alignements au total & >",mincovU," uniques\\\\\n", 
+                                          "\\midrule \n",sep=""),
+                                    "\\bottomrule \n")
+                        )
+      )
+  if(i>5)
+    {
+    i=0
+    cat("\\clearpage")
+    }
+}
+@
+% \begin{table}[ht]
+% \centering
+% \caption{Table de couverture des régions ciblées de PHF6} 
+% \label{StatsTable}
+% {\footnotesize
+% \begin{tabular}{rr}
+%   \toprule 
+% Région & Pourcentage couvert par au moins 851\\
+% \midrule 
+%  chrX:133511622-133511810 PHF6 & 100.00 \\ 
+%   chrX:133512009-133512161 PHF6 & 94.74 \\ 
+%   chrX:133527505-133527689 PHF6 & 100.00 \\ 
+%   chrX:133527913-133528007 PHF6 & 100.00 \\ 
+%   chrX:133547492-133547712 PHF6 & 100.00 \\ 
+%   chrX:133547827-133548021 PHF6 & 100.00 \\ 
+%   chrX:133549020-133549277 PHF6 & 100.00 \\ 
+%   chrX:133551173-133551361 PHF6 & 100.00 \\ 
+%   chrX:133559205-133559385 PHF6 & 100.00 \\ 
+%    \bottomrule 
+% \end{tabular}
+% }
+% \end{table}
+
+<<label=plotgenesall,results=tex,echo=FALSE>>=
+source("../plot_gene_profile.R")
+for(name in names(list_gene_ranges))
+{
+  graphfile=paste(name,".pdf", sep="")
+  pdf(file=graphfile,width=7, height=7)
+  plot_gene_profile(list_gene_ranges[[name]],bamname,rmdupfile,name)
+  dev.off()
+  cat("\\begin{wrapfigure}{c}{\\textwidth}\n\\begin{center}\n\\includegraphics{",graphfile, "}\n\\end{center}\n\\end{wrapfigure}", sep="")
+  #Option : add \n\\caption{Profil de couverture de ",name," but have to reformat it properly
+}
+@
+
+
+
+\end{document}
