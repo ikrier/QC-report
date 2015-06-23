@@ -1,4 +1,23 @@
-plot_gene_profile=function(range,bamname,rmdupfile,title)
+# =======
+#   License
+# =======
+#   This code is released under the GNU General Public License 3.0. A copy
+# of this license is in the LICENSE.txt file.
+# copyright Irina Krier 2015
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+plot_gene_profile=function(range,bamname,rmdupfile,targets,amplicons,title)
 {
 library("Gviz")
 library("biomaRt")
@@ -28,7 +47,7 @@ library(BSgenome.Hsapiens.UCSC.hg19)
 options(ucscChromosomeNames=FALSE)
 lengths=seqlengths(Hsapiens)
 names(lengths)=sapply(names(lengths),function(x){substr(x,start = 4,stop = nchar(x))})
-source("../strandedBamImport.R")
+source("strandedBamImport.R")
 granges=strandedBamImport(bamname,range)
 granges2=granges
 granges2$both=NULL
@@ -47,8 +66,13 @@ displayPars(dTrackGrange2)$groups=c("+","-")
 displayPars(dTrackGrange2)$col= c("#0099FF","#FF33CC")
 displayPars(dTrackGrange2u)$groups=c("+","-")
 displayPars(dTrackGrange2u)$col= c("#0099FF","#FF33CC")
-plotTracks(list(gtrack,dTrackns,dTrackGrange2,dTrackGrange2u,cosmicTrack,biomTrack),
+targetsTrack=AnnotationTrack(targets,name="Targets")
+displayPars(targetsTrack)$fill= "grey"
+displayPars(targetsTrack)$col= "grey"
+ampliconsTrack=AnnotationTrack(amplicons,stacking = "squish",name="Ampli- cons")
+strand(ampliconsTrack)="*"
+plotTracks(list(gtrack,dTrackns,dTrackGrange2,dTrackGrange2u,cosmicTrack,biomTrack,targetsTrack,ampliconsTrack),
            from =start(range), to = end(range),chromosome=seqnames(range),
-           type="hist", col.histogram=NA,windowSize=0,baseline=0,sizes = c(1,1,1,1,1,0.5),
+           type="hist", col.histogram=NA,windowSize=0,baseline=0,sizes = c(1,1,1,1,1,0.5,0.5,0.5),
            main=title)
 }
